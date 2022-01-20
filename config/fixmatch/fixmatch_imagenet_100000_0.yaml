@@ -5,16 +5,21 @@ load_path: None
 overwrite: True
 use_tensorboard: True
 epoch: 1
-num_train_iter: 2000000
+num_train_iter: 1048576
 num_eval_iter: 10000
 num_labels: 100000
+<<<<<<< HEAD
 batch_size: 16 #32
 eval_batch_size: 64 #256
+=======
+batch_size: 128
+eval_batch_size: 256
+>>>>>>> cb274566ba9b94f188577774ecdbfc94e6534569
 hard_label: True
 T: 0.5
-p_cutoff: 0.95
+p_cutoff: 0.7
 ulb_loss_ratio: 1.0
-uratio: 7
+uratio: 1
 ema_m: 0.999
 optim: SGD
 lr: 0.03
