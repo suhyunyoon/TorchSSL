@@ -29,11 +29,15 @@ mean['svhn'] = [0.4380, 0.4440, 0.4730]
 mean['stl10'] = [x / 255 for x in [112.4, 109.1, 98.6]]
 mean['imagenet'] = [0.485, 0.456, 0.406]
 
+mean['voc12'] = [0.485, 0.456, 0.406]
+
 std['cifar10'] = [x / 255 for x in [63.0, 62.1, 66.7]]
 std['cifar100'] = [x / 255 for x in [68.2, 65.4, 70.4]]
 std['svhn'] = [0.1751, 0.1771, 0.1744]
 std['stl10'] = [x / 255 for x in [68.4, 66.6, 68.5]]
 std['imagenet'] = [0.229, 0.224, 0.225]
+
+std['voc12'] = [0.229, 0.224, 0.225]
 
 
 def accimage_loader(path):
@@ -176,6 +180,138 @@ class ImageNetLoader:
         data = ImagenetDataset(root=os.path.join(self.root_path, "val"), transform=transform, ulb=False)
         return data
 
+class VOCClassification(torchvision.datasets.VOCDetection):
+    def __init__(self, root, transform, ulb, images=None, split='train'):
+        self.ulb = ulb
+        # Train_aug
+        self.voc_class = voc_class = [
+            "aeroplane",
+            "bicycle",
+            "bird",
+            "boat",
+            "bottle",
+            "bus",
+            "car",
+            "cat",
+            "chair",
+            "cow",
+            "diningtable",
+            "dog",
+            "horse",
+            "motorbike",
+            "person",
+            "pottedplant",
+            "sheep",
+            "sofa",
+            "train",
+            "tvmonitor"
+        ]
+        self.voc_class_num = 20
+        self.voc_colormap = [
+            [0, 0, 0],
+            [128, 0, 0],
+            [0, 128, 0],
+            [128, 128, 0],
+            [0, 0, 128],
+            [128, 0, 128],
+            [0, 128, 128],
+            [128, 128, 128],
+            [64, 0, 0],
+            [192, 0, 0],
+            [64, 128, 0],
+            [192, 128, 0],
+            [64, 0, 128],
+            [192, 0, 128],
+            [64, 128, 128],
+            [192, 128, 128],
+            [0, 64, 0],
+            [128, 64, 0],
+            [0, 192, 0],
+            [128, 192, 0],
+            [0, 64, 128],
+        ]
+        
+        # Init
+        super(VOCClassification, self).__init__(root=root, image_set=split, year='2012', download=False, transform=None)
+
+        if split == 'train':
+            # directory initialization
+            image_dir = os.path.split(self.images[0])[0]
+            annotation_dir = os.path.join(os.path.dirname(image_dir), 'Annotations')
+
+            self.images = [os.path.join(image_dir, x + ".jpg") for x in images]
+
+            self.annotations.clear()
+            for x in images:
+                self.annotations.append(os.path.join(annotation_dir, x + ".xml"))
+
+        self.transform = transform
+        if self.ulb:
+            self.strong_transform = copy.deepcopy(transform)
+            self.strong_transform.transforms.insert(0, RandAugment(3, 5))
+
+    def __getitem__(self, index):
+        img, ann = super().__getitem__(index)
+        
+        # get object list
+        objects = ann['annotation']['object']
+        # get unique classes
+        ann = torch.LongTensor(list({self.voc_class.index(o['name']) for o in objects}))
+        # make one-hot encoding
+        one_hot = torch.zeros(self.voc_class_num)
+        one_hot[ann] = 1
+
+        if self.transform is not None:
+            sample_transformed = self.transform(img)
+        if self.target_transform is not None:
+            one_hot = self.target_transform(one_hot)
+
+        return (index, sample_transformed, one_hot) if not self.ulb else \
+                (index, sample_transformed, self.strong_transform(img))
+
+class VOCLoader:
+    def __init__(self, root_path):
+        self.root_path = root_path
+        
+        # read labeled image lists
+        with open('data/voc12/train_aug_labeled_1-8.txt', 'r') as f:
+            self.lb_images = f.read().split()
+        # read unlabeled image lists
+        with open('data/voc12/train_aug_unlabeled_1-8.txt', 'r') as f:
+            self.ulb_images = f.read().split()
+
+    def get_transform(self, train, ulb):
+        if train:
+            transform = transforms.Compose([
+                transforms.Resize([256, 256]),
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomCrop(224, padding=4, padding_mode='reflect'),
+                transforms.ToTensor(),
+                transforms.Normalize(mean["voc12"], std["voc12"])])
+        else:
+            transform = transforms.Compose([
+                transforms.Resize([224, 224]),
+                transforms.ToTensor(),
+                transforms.Normalize(mean["voc12"], std["voc12"])])
+        return transform
+
+    def get_lb_train_data(self):
+        transform = self.get_transform(train=True, ulb=False)
+        data = VOCClassification(root=self.root_path, transform=transform, ulb=False,
+                               images=self.lb_images)
+        return data
+
+    def get_ulb_train_data(self):
+        transform = self.get_transform(train=True, ulb=True)
+        data = VOCClassification(root=self.root_path, transform=transform, ulb=True,
+                                images=self.ulb_images)
+        return data
+
+    def get_lb_test_data(self):
+        transform = self.get_transform(train=False, ulb=False)
+        data = VOCClassification(root=self.root_path, transform=transform, ulb=False, split='val')
+        return data
+
 
 def get_transform(mean, std, crop_size, train=True):
     if train:
@@ -226,6 +362,7 @@ class SSL_Dataset:
         shape of labels: B,
         """
         dset = getattr(torchvision.datasets, self.name.upper())
+
         if 'CIFAR' in self.name.upper():
             dset = dset(self.data_dir, train=self.train, download=True)
             data, targets = dset.data, dset.targets
