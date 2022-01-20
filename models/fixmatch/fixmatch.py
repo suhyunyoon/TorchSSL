@@ -12,8 +12,8 @@ import os
 import contextlib
 from train_utils import AverageMeter
 
-from .fixmatch_utils import consistency_loss, Get_Scalar
-from train_utils import ce_loss, wd_loss, EMA, Bn_Controller
+from .fixmatch_utils import consistency_loss, Get_Scalar, AP
+from train_utils import ce_loss, multilabel_bce_loss, wd_loss, EMA, Bn_Controller
 
 from sklearn.metrics import *
 from copy import deepcopy
@@ -110,6 +110,12 @@ class FixMatch:
             eval_dict = self.evaluate(args=args)
             print(eval_dict)
 
+        if args.dataset == 'voc12':
+            loss_fn = multilabel_bce_loss
+            #loss_fn = multilabel_sm_loss
+        else:
+            loss_fn = ce_loss
+
         selected_label = torch.ones((len(self.ulb_dset),), dtype=torch.long, ) * -1
         selected_label = selected_label.cuda(args.gpu)
 
@@ -145,7 +151,7 @@ class FixMatch:
                 logits = self.model(inputs)
                 logits_x_lb = logits[:num_lb]
                 logits_x_ulb_w, logits_x_ulb_s = logits[num_lb:].chunk(2)
-                sup_loss = ce_loss(logits_x_lb, y_lb, reduction='mean')
+                sup_loss = loss_fn(logits_x_lb, y_lb, reduction='mean')
 
                 # hyper-params for update
                 T = self.t_fn(self.it)
@@ -153,7 +159,8 @@ class FixMatch:
 
                 unsup_loss, mask, select, pseudo_lb = consistency_loss(logits_x_ulb_s,
                                                                        logits_x_ulb_w,
-                                                                       'ce', T, p_cutoff,
+                                                                       'ce' if args.dataset != 'voc12' else 'multilabel_bce',
+                                                                       T, p_cutoff,
                                                                        use_hard_labels=args.hard_label)
 
                 total_loss = sup_loss + self.lambda_u * unsup_loss
@@ -233,6 +240,11 @@ class FixMatch:
         self.ema.apply_shadow()
         if eval_loader is None:
             eval_loader = self.loader_dict['eval']
+        if args.dataset != 'voc12':
+            eval_loss_fn = F.cross_entropy
+        else:
+            eval_loss_fn = F.binary_cross_entropy_with_logits
+
         total_loss = 0.0
         total_num = 0.0
         y_true = []
@@ -243,23 +255,39 @@ class FixMatch:
             num_batch = x.shape[0]
             total_num += num_batch
             logits = self.model(x)
-            loss = F.cross_entropy(logits, y, reduction='mean')
+            loss = eval_loss_fn(logits, y, reduction='mean')
             y_true.extend(y.cpu().tolist())
             y_pred.extend(torch.max(logits, dim=-1)[1].cpu().tolist())
             y_logits.extend(torch.softmax(logits, dim=-1).cpu().tolist())
             total_loss += loss.detach() * num_batch
+
+        if args.dataset != 'voc12':
+            top5 = top_k_accuracy_score(y_true, y_logits, k=5)
+            cf_mat = confusion_matrix(y_true, y_pred, normalize='true')
+            self.print_fn('confusion matrix:\n' + np.array_str(cf_mat))
+
+        else:
+            y_true = torch.Tensor(y_true)
+            y_pred = torch.Tensor(y_logits) >= 0.5
+            y_logits = torch.Tensor(y_logits)
+            map = AP(y_true, y_logits).mean()
+            cf_mat = multilabel_confusion_matrix(y_true, y_pred)
+            #cself.print_fn('confusion matrix:\n' + np.array_str(cf_mat))
+
         top1 = accuracy_score(y_true, y_pred)
-        top5 = top_k_accuracy_score(y_true, y_logits, k=5)
         precision = precision_score(y_true, y_pred, average='macro')
         recall = recall_score(y_true, y_pred, average='macro')
         F1 = f1_score(y_true, y_pred, average='macro')
         AUC = roc_auc_score(y_true, y_logits, multi_class='ovo')
 
-        cf_mat = confusion_matrix(y_true, y_pred, normalize='true')
-        self.print_fn('confusion matrix:\n' + np.array_str(cf_mat))
         self.ema.restore()
         self.model.train()
-        return {'eval/loss': total_loss / total_num, 'eval/top-1-acc': top1, 'eval/top-5-acc': top5,
+
+        if args.dataset != 'voc12':
+            return {'eval/loss': total_loss / total_num, 'eval/top-1-acc': top1, 'eval/top-5-acc': top5,
+                'eval/precision': precision, 'eval/recall': recall, 'eval/F1': F1, 'eval/AUC': AUC}
+        else:
+            return {'eval/loss': total_loss / total_num, 'eval/top-1-acc': top1, 'map': map,
                 'eval/precision': precision, 'eval/recall': recall, 'eval/F1': F1, 'eval/AUC': AUC}
 
     def save_model(self, save_name, save_path):
