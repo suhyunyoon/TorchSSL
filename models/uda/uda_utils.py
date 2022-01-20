@@ -1,7 +1,7 @@
 import torch
 import math
 import torch.nn.functional as F
-from train_utils import ce_loss
+from train_utils import ce_loss, multilabel_sm_loss
 import numpy as np
 
 
@@ -49,6 +49,26 @@ def consistency_loss(logits_s, logits_w, class_acc, it, ds, name='ce', T=1.0, p_
         masked_loss = ce_loss(logits_s, pseudo_label, use_hard_labels=False) * mask
         return masked_loss.mean(), mask.mean(), select, max_idx.long()
 
+    elif name == 'multilabel_sm':
+        pseudo_label = torch.sigmoid(logits_w)
+
+        # 평균 threshold
+        #p_cutoff = torch.mean(pseudo_label, dim=-1)
+
+        max_probs, max_idx = torch.max(pseudo_label, dim=-1)
+        if use_flex:
+            mask = max_probs.ge(p_cutoff * (class_acc[max_idx] / (2. - class_acc[max_idx]))).float()
+        else:
+            mask = max_probs.ge(p_cutoff).float()
+        select = max_probs.ge(p_cutoff).long()
+
+        # print(pseudo_label.size(), torch.mean(pseudo_label, dim=-1).size())
+        adj_pseudo_label = pseudo_label.ge(torch.mean(pseudo_label, dim=-1).unsqueeze(dim=-1)).float()
+        masked_loss = multilabel_sm_loss(logits_s, adj_pseudo_label, use_hard_labels=True) * mask
+        ##pseudo_label = torch.softmax(logits_w / T, dim=-1)
+        # masked_loss = multilabel_sm_loss(logits_s, pseudo_label, use_hard_labels=False) * mask
+        return masked_loss.mean(), mask.mean(), select, max_idx.long()
+
     if name == 'kld_tf':
         # The implementation of loss_unsup for Google's TF
         # logits_tgt by sharpening
@@ -71,3 +91,37 @@ def consistency_loss(logits_s, logits_w, class_acc, it, ds, name='ce', T=1.0, p_
 
 def torch_device_one():
     return torch.tensor(1.)
+
+
+def average_precision(pred, label):
+    epsilon = 1e-8
+    pred, label = pred.numpy(), label.numpy()
+    # sort examples
+    indices = pred.argsort()[::-1]
+    # Computes prec@i
+    total_count_ = np.cumsum(np.ones((len(pred), 1)))
+
+    label_ = label[indices]
+    ind = label_ == 1
+    pos_count_ = np.cumsum(ind)
+    total = pos_count_[-1]
+    pos_count_[np.logical_not(ind)] = 0
+    pp = pos_count_ / total_count_
+    precision_at_i_ = np.sum(pp)
+    precision_at_i = precision_at_i_ / (total + epsilon)
+
+    return precision_at_i
+
+
+def AP(label, logit):
+    if np.size(logit) == 0:
+        return 0
+    ap = np.zeros((logit.shape[1]))
+    # compute average precision for each class
+    for k in range(logit.shape[1]):
+        # sort scores
+        logits = logit[:, k]
+        preds = label[:, k]
+        
+        ap[k] = average_precision(logits, preds)
+    return ap

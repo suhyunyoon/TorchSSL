@@ -15,7 +15,7 @@ import torch.multiprocessing as mp
 from utils import net_builder, get_logger, count_parameters, over_write_args_from_file
 from train_utils import TBLog, get_optimizer, get_cosine_schedule_with_warmup
 from models.uda.uda import Uda
-from datasets.ssl_dataset import SSL_Dataset
+from datasets.ssl_dataset import SSL_Dataset, ImageNetLoader, VOCLoader
 from datasets.data_utils import get_data_loader
 
 
@@ -106,10 +106,12 @@ def main_worker(gpu, ngpus_per_node, args):
     args.bn_momentum = 1.0 - 0.999
     if 'imagenet' in args.dataset.lower():
         _net_builder = net_builder('ResNet50', False, None, is_remix=False)
+    #elif 'voc12' in args.dataset.lower():
+    #    _net_builder = net_builder('ResNet50', False, None, is_remix=False)
     else:
         _net_builder = net_builder(args.net,
                                    args.net_from_name,
-                                   {'first_stride': 2 if 'stl' in args.dataset else 1,
+                                   {'first_stride': 2 if ('stl' in args.dataset or 'voc12' in args.dataset) else 1,
                                     'depth': args.depth,
                                     'widen_factor': args.widen_factor,
                                     'leaky_slope': args.leaky_slope,
@@ -163,7 +165,7 @@ def main_worker(gpu, ngpus_per_node, args):
             # if arg.gpu is None, DDP will divide and allocate batch_size
             # to all available GPUs if device_ids are not set.
             model.cuda()
-            model = torch.nn.parallel.DistributedDataParallel(model)
+            model = torch.nn.parallel.DistributedDataParallel(model) 
 
     elif args.gpu is not None:
         torch.cuda.set_device(args.gpu)
@@ -181,13 +183,27 @@ def main_worker(gpu, ngpus_per_node, args):
         torch.distributed.barrier()
  
     # Construct Dataset & DataLoader
-    train_dset = SSL_Dataset(args, alg='uda', name=args.dataset, train=True,
-                             num_classes=args.num_classes, data_dir=args.data_dir)
-    lb_dset, ulb_dset = train_dset.get_ssl_dset(args.num_labels)
+    if args.dataset == 'imagenet':
+        image_loader = ImageNetLoader(root_path=args.data_dir, num_labels=args.num_labels,
+                                      num_class=args.num_classes)
+        lb_dset = image_loader.get_lb_train_data()
+        ulb_dset = image_loader.get_ulb_train_data()
+        eval_dset = image_loader.get_lb_test_data()
+    
+    elif args.dataset == 'voc12':
+        image_loader = VOCLoader(root_path=args.data_dir)
+        lb_dset = image_loader.get_lb_train_data()
+        ulb_dset = image_loader.get_ulb_train_data()
+        eval_dset = image_loader.get_lb_test_data()
+    
+    else:
+        train_dset = SSL_Dataset(args, alg='uda', name=args.dataset, train=True,
+                                num_classes=args.num_classes, data_dir=args.data_dir)
+        lb_dset, ulb_dset = train_dset.get_ssl_dset(args.num_labels)
 
-    _eval_dset = SSL_Dataset(args, alg='uda', name=args.dataset, train=False,
-                             num_classes=args.num_classes, data_dir=args.data_dir)
-    eval_dset = _eval_dset.get_dset()
+        _eval_dset = SSL_Dataset(args, alg='uda', name=args.dataset, train=False,
+                                num_classes=args.num_classes, data_dir=args.data_dir)
+        eval_dset = _eval_dset.get_dset()
     if args.rank == 0 and args.distributed:
         torch.distributed.barrier()
  

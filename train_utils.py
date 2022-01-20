@@ -312,6 +312,33 @@ def ce_loss(logits, targets, use_hard_labels=True, reduction='none'):
         return nll_loss
 
 
+def multilabel_sm_loss(logits, targets, use_hard_labels=True, reduction='none'):
+
+    if use_hard_labels:
+        #log_pred = F.log_softmax(logits, dim=-1)
+        return F.multilabel_soft_margin_loss(logits, targets, reduction=reduction)
+        # return F.cross_entropy(logits, targets, reduction=reduction) this is unstable
+    else:
+        assert logits.shape == targets.shape
+        log_pred = F.sigmoid(logits, dim=-1)
+        nll_loss = torch.sum(-targets * log_pred, dim=1)
+        return nll_loss
+
+
+def multilabel_bce_loss(logits, targets, use_hard_labels=True, reduction='none'):
+
+    if use_hard_labels:
+        #log_pred = F.log_softmax(logits, dim=-1)
+        return F.binary_cross_entropy_with_logits(logits, targets, reduction=reduction)
+        # return F.cross_entropy(logits, targets, reduction=reduction) this is unstable
+    else:
+        assert logits.shape == targets.shape
+        log_pred = torch.sigmoid(logits)
+        nll_loss = torch.sum(-targets * log_pred, dim=1)
+        return nll_loss
+
+
+
 # class EMA:
 #    """
 #    Implementation from https://fyubang.com/2019/06/01/ema/
