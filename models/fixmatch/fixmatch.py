@@ -243,7 +243,7 @@ class FixMatch:
         if args.dataset != 'voc12':
             eval_loss_fn = F.cross_entropy
         else:
-            eval_loss_fn = F.binary_cross_entropy_with_logits
+            eval_loss_fn = F.multilabel_soft_margin_loss
 
         total_loss = 0.0
         total_num = 0.0
@@ -268,7 +268,7 @@ class FixMatch:
 
         else:
             y_true = torch.Tensor(y_true)
-            y_pred = torch.Tensor(y_logits) >= 0.5
+            y_pred = torch.sigmoid(torch.Tensor(y_logits))
             y_logits = torch.Tensor(y_logits)
             map = AP(y_true, y_logits).mean()
             cf_mat = multilabel_confusion_matrix(y_true, y_pred)

@@ -268,7 +268,7 @@ class Uda:
             self.print_fn('confusion matrix:\n' + np.array_str(cf_mat))
         else:  
             y_true = torch.Tensor(y_true)
-            y_pred = torch.Tensor(y_logits) >= 0.5
+            y_pred = torch.sigmoid(torch.Tensor(y_logits)) # >= 0.5
             y_logits = torch.Tensor(y_logits)
             map = AP(y_true, y_logits).mean()
             cf_mat = multilabel_confusion_matrix(y_true, y_pred)
