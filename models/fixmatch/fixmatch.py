@@ -288,7 +288,7 @@ class FixMatch:
             F1 = f1_score(y_true, y_pred, average='samples')
             AUC = roc_auc_score(y_true, y_logits, multi_class='samples')
 
-            result = {'eval/loss': total_loss / total_num, 'eval/top-1-acc': top1, 'map': map,
+            result = {'eval/loss': total_loss / total_num, 'eval/top-1-acc': top1, 'eval/map': map,
                 'eval/precision': precision, 'eval/recall': recall, 'eval/F1': F1, 'eval/AUC': AUC}
 
         self.ema.restore()
