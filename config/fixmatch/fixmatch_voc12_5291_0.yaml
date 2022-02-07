@@ -1,5 +1,5 @@
 save_dir: ./saved_models
-save_name: fixmatch_voc12_1323_0_option1
+save_name: fixmatch_voc12_5291_0_option1
 resume: False
 load_path: None
 overwrite: True
@@ -31,8 +31,8 @@ leaky_slope: 0.1
 dropout: 0.0
 data_dir: ../../dataset/VOC/
 dataset: voc12
-lb_list: data/voc12/train_aug_labeled_1-8.txt
-ulb_list: data/voc12/train_aug_unlabeled_1-8.txt
+lb_list: data/voc12/train_aug_labeled_1-2.txt
+ulb_list: data/voc12/train_aug_unlabeled_1-2.txt
 train_sampler: RandomSampler
 num_classes: 20
 num_workers: 1

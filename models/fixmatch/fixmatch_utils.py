@@ -47,12 +47,13 @@ def consistency_loss(logits_s, logits_w, name='ce', T=1.0, p_cutoff=0.0, use_har
         max_probs, max_idx = torch.max(pseudo_label, dim=-1)
         mask = max_probs.ge(p_cutoff).float().unsqueeze(dim=-1)
         select = max_probs.ge(p_cutoff).long()
-
+        
         # # Option 2 (thresholding minimum positive confidence)
-        # pos_pl = torch.where(pseudo_label.ge(0.5), pseudo_label, 1.)
-        # max_probs, max_idx = torch.min(pos_pl, dim=-1)
-        # mask = max_probs.ge(p_cutoff).float().unsqueeze(dim=-1)
-        # select = max_probs.ge(p_cutoff).long()
+        # pos_pl = pseudo_label.ge(0.5)
+        # pos_pl = torch.where(pos_pl, pseudo_label, torch.ones(pseudo_label.size()).float().cuda(pseudo_label.device))
+        # min_pos_probs, max_idx = torch.min(pos_pl, dim=-1)
+        # mask = min_pos_probs.ge(p_cutoff).float().unsqueeze(dim=-1)
+        # select = min_pos_probs.ge(p_cutoff).long()
 
         # # Option 3 (masking ambigous each classes(0.5<=logit<p_cutoff))
         # max_probs, max_idx = torch.max(pseudo_label, dim=-1) # useless

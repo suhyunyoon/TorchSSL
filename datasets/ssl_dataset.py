@@ -270,14 +270,14 @@ class VOCClassification(torchvision.datasets.VOCDetection):
                 (index, sample_transformed, self.strong_transform(img))
 
 class VOCLoader:
-    def __init__(self, root_path):
+    def __init__(self, root_path, lb_list='data/voc12/train_aug_labeled_1-8.txt', ulb_list='data/voc12/train_aug_unlabeled_1-8.txt'):
         self.root_path = root_path
         
         # read labeled image lists
-        with open('data/voc12/train_aug_labeled_1-8.txt', 'r') as f:
+        with open(lb_list, 'r') as f:
             self.lb_images = f.read().split()
         # read unlabeled image lists
-        with open('data/voc12/train_aug_unlabeled_1-8.txt', 'r') as f:
+        with open(ulb_list, 'r') as f:
             self.ulb_images = f.read().split()
 
     def get_transform(self, train, ulb):
