@@ -193,7 +193,7 @@ def main_worker(gpu, ngpus_per_node, args):
         eval_dset = image_loader.get_lb_test_data()
     
     elif args.dataset == 'voc12':
-        image_loader = VOCLoader(root_path=args.data_dir)
+        image_loader = VOCLoader(root_path=args.data_dir, lb_list=args.lb_list, ulb_list=args.ulb_list)
         lb_dset = image_loader.get_lb_train_data()
         ulb_dset = image_loader.get_ulb_train_data()
         eval_dset = image_loader.get_lb_test_data()
