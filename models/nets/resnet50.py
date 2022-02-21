@@ -4,7 +4,10 @@ from https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
 import torch
 from torch import Tensor
 import torch.nn as nn
+from torch.hub import load_state_dict_from_url
 from typing import Type, Any, Callable, Union, List, Optional
+
+model_urls = "https://download.pytorch.org/models/resnet50-0676ba61.pth"
 
 
 def conv3x3(in_planes: int, out_planes: int, stride: int = 1, groups: int = 1, dilation: int = 1) -> nn.Conv2d:
@@ -124,7 +127,6 @@ class Bottleneck(nn.Module):
 
         return out
 
-
 class ResNet50(nn.Module):
 
     def __init__(
@@ -241,13 +243,56 @@ class ResNet50(nn.Module):
     def forward(self, x):
         return self._forward_impl(x)
 
+    # load_state_dict includes size mismatch
+    def on_load_checkpoint(self, state_dict, strict=True) -> None:
+        model_state_dict = self.state_dict()
+        pop_keys = []
+        for k in state_dict:
+            if k in model_state_dict:
+                if state_dict[k].shape != model_state_dict[k].shape:
+                    print(f"Parameter size mismatch: {k}, "
+                                f"required shape: {model_state_dict[k].shape}, "
+                                f"loaded shape: {state_dict[k].shape}")
+                    if strict:
+                        raise RuntimeError
+                    else:
+                        pop_keys.append(k)
+            else:
+                print(f"Dropping parameter {k}")
+                if strict:
+                    raise RuntimeError
+                else:
+                    pop_keys.append(k)
+        for k in pop_keys:
+            state_dict.pop(k, None)
+
+        self.load_state_dict(state_dict, strict=False)
+    
+    def get_parameter_groups(self):
+        groups = ([], [])
+
+        for name, value in self.named_parameters():
+            if 'fc' in name:
+                groups[1].append(value)
+            else:
+                groups[0].append(value)
+
+        return groups
+
 
 class build_ResNet50:
-    def __init__(self, is_remix=False):
+    def __init__(self, is_remix=False, pretrained=False):
         self.is_remix = is_remix
+        self.pretrained = pretrained
 
     def build(self, num_classes):
-        return ResNet50(n_class=num_classes, is_remix=self.is_remix)
+        model = ResNet50(n_class=num_classes, is_remix=self.is_remix)
+        # Get Pretrained Weights(for finetuning)
+        if self.pretrained:
+            state_dict = load_state_dict_from_url(model_urls, progress=True)
+            model.on_load_checkpoint(state_dict, strict=False)
+            #model.load_state_dict(state_dict, strict=True)
+        return model
 
 
 if __name__ == '__main__':

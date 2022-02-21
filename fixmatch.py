@@ -105,8 +105,10 @@ def main_worker(gpu, ngpus_per_node, args):
 
     # SET FixMatch: class FixMatch in models.fixmatch
     args.bn_momentum = 1.0 - 0.999
-    if 'imagenet' in args.dataset.lower() or 'voc12' in args.dataset.lower():
+    if 'imagenet' in args.dataset.lower():
         _net_builder = net_builder('ResNet50', False, None, is_remix=False)
+    elif 'voc12' in args.dataset.lower():
+        _net_builder = net_builder('ResNet50', False, None, is_remix=False, pretrained=args.pretrained)
     else:
         _net_builder = net_builder(args.net,
                                    args.net_from_name,

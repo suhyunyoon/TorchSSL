@@ -36,7 +36,7 @@ def test_setattr_cls_from_kwargs():
         print(f"{key}:\t {getattr(test_cls, key)}")
 
 
-def net_builder(net_name, from_name: bool, net_conf=None, is_remix=False):
+def net_builder(net_name, from_name: bool, net_conf=None, is_remix=False, pretrained=False):
     """
     return **class** of backbone network (not instance).
     Args
@@ -66,7 +66,7 @@ def net_builder(net_name, from_name: bool, net_conf=None, is_remix=False):
             builder = getattr(net, 'build_WideResNetVar')()
         elif net_name == 'ResNet50':
             import models.nets.resnet50 as net
-            builder = getattr(net, 'build_ResNet50')(is_remix)
+            builder = getattr(net, 'build_ResNet50')(is_remix, pretrained)
         else:
             assert Exception("Not Implemented Error")
 

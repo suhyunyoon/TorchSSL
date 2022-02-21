@@ -6,7 +6,7 @@ overwrite: True
 use_tensorboard: True
 epoch: 1
 # 262144
-num_train_iter: 2500000
+num_train_iter: 2000000
 # 10000
 num_eval_iter: 2000 
 num_labels: 100000
@@ -25,6 +25,7 @@ weight_decay: 0.0003
 amp: False
 net: ResNet50
 net_from_name: False
+pretrained: True
 depth: 0
 widen_factor: 0
 leaky_slope: 0.1

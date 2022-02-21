@@ -1,12 +1,12 @@
 save_dir: ./saved_models
-save_name: fixmatch_voc12_1323_0_option1
+save_name: fixmatch_voc12_5291_0_option1_fast_pretrained
 resume: False
 load_path: None
 overwrite: True
 use_tensorboard: True
 epoch: 1
 # 262144
-num_train_iter: 2500000
+num_train_iter: 250000
 # 10000
 num_eval_iter: 2000 
 num_labels: 100000
@@ -15,7 +15,7 @@ eval_batch_size: 64
 hard_label: True
 T: 0.5
 p_cutoff: 0.7
-ulb_loss_ratio: 1.0
+ulb_loss_ratio: 0.0 #1.0
 uratio: 1
 ema_m: 0.999
 optim: SGD
@@ -32,8 +32,8 @@ leaky_slope: 0.1
 dropout: 0.0
 data_dir: ../../dataset/VOC/
 dataset: voc12
-lb_list: data/voc12/train_aug_labeled_1-8.txt
-ulb_list: data/voc12/train_aug_unlabeled_1-8.txt
+lb_list: data/voc12/train_aug_labeled_1-2.txt
+ulb_list: data/voc12/train_aug_labeled_1-8.txt #unlabeled
 train_sampler: RandomSampler
 num_classes: 20
 num_workers: 1
