@@ -43,10 +43,10 @@ def consistency_loss(logits_s, logits_w, name='ce', T=1.0, p_cutoff=0.0, use_har
     elif name == 'multilabel_bce':
         pseudo_label = torch.sigmoid(logits_w)
 
-        # Option 1 (same with single-label)
-        max_probs, max_idx = torch.max(pseudo_label, dim=-1)
-        mask = max_probs.ge(p_cutoff).float().unsqueeze(dim=-1)
-        select = max_probs.ge(p_cutoff).long()
+        # # Option 1 (same with single-label)
+        # max_probs, max_idx = torch.max(pseudo_label, dim=-1)
+        # mask = max_probs.ge(p_cutoff).float().unsqueeze(dim=-1)
+        # select = max_probs.ge(p_cutoff).long()
         
         # # Option 2 (thresholding minimum positive confidence)
         # pos_pl = pseudo_label.ge(0.5)
@@ -59,6 +59,11 @@ def consistency_loss(logits_s, logits_w, name='ce', T=1.0, p_cutoff=0.0, use_har
         # max_probs, max_idx = torch.max(pseudo_label, dim=-1) # useless
         # mask_bool = torch.logical_or(pseudo_label.lt(0.5), pseudo_label.ge(p_cutoff))
         # mask, select = mask_bool.float(), mask_bool.long()
+
+        # Option 3 (mask each class(logit>=p_cutoff))
+        max_probs, max_idx = torch.max(pseudo_label, dim=-1) # useless
+        mask_bool = pseudo_label.ge(p_cutoff)
+        mask, select = mask_bool.float(), mask_bool.long()
 
         if use_hard_labels:
             pseudo_hard_label = pseudo_label.ge(0.5).float()

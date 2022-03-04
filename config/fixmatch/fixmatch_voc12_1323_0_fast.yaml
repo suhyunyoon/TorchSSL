@@ -1,35 +1,35 @@
 save_dir: ./saved_models
-save_name: fixmatch_voc12_1323_0_option1_fast_pretrained
+save_name: fixmatch_voc12_1323_0_fast_pretrained_poly
 resume: False
 load_path: None
-overwrite: True
+overwrite: True 
 use_tensorboard: True
-epoch: 1
+epoch: 1 #
 # 262144
-num_train_iter: 250000
+num_train_iter: 250000 #
 # 10000
-num_eval_iter: 2000 
-num_labels: 100000
-batch_size: 16
-eval_batch_size: 64
-hard_label: True
-T: 0.5
-p_cutoff: 0.7
+num_eval_iter: 2000 #
+num_labels: 100000 #
+batch_size: 16 #
+eval_batch_size: 64 #
+hard_label: True #
+T: 0.5 #
+p_cutoff: 0.7 #
 ulb_loss_ratio: 0.0 #1.0
-uratio: 1
-ema_m: 0.999
-optim: SGD
-lr: 0.03
-momentum: 0.9
-weight_decay: 0.0003
-amp: False
-net: ResNet50
-net_from_name: False
-pretrained: True
-depth: 0
-widen_factor: 0
-leaky_slope: 0.1
-dropout: 0.0
+uratio: 1 #
+ema_m: 0.999 #
+optim: SGD #
+lr: 0.03 #
+momentum: 0.9 #
+weight_decay: 0.0003 #
+amp: False #
+net: ResNet50 #
+net_from_name: False #
+pretrained: True #
+depth: 0 #
+widen_factor: 0 #
+leaky_slope: 0.1 #
+dropout: 0.0 #
 data_dir: ../../dataset/VOC/
 dataset: voc12
 lb_list: data/voc12/train_aug_labeled_1-8.txt

@@ -259,6 +259,22 @@ def get_imagenet_schedule(optimizer, num_training_steps, num_labels, batch_size)
     def _lr_lambda(iter):
         return None
 
+def get_poly_scheduler(optimizer,
+                    num_training_steps,
+                    momentum=0.9,
+                    last_epoch=-1):
+
+    def _lr_lambda(current_step):
+        '''
+        _lr_lambda returns a multiplicative factor given an interger parameter epochs.
+        Decaying criteria: last_epoch
+        '''
+
+        _lr = (1 - current_step / num_training_steps) ** momentum
+
+        return _lr
+
+    return LambdaLR(optimizer, _lr_lambda, last_epoch)
 
 def accuracy(output, target, topk=(1,)):
     """

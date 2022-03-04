@@ -13,7 +13,7 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 
 from utils import net_builder, get_logger, count_parameters, over_write_args_from_file
-from train_utils import TBLog, get_optimizer, get_cosine_schedule_with_warmup
+from train_utils import TBLog, get_optimizer, get_cosine_schedule_with_warmup, get_poly_scheduler
 from models.fixmatch.fixmatch import FixMatch
 from datasets.ssl_dataset import SSL_Dataset, ImageNetLoader, VOCLoader
 from datasets.data_utils import get_data_loader
@@ -138,9 +138,13 @@ def main_worker(gpu, ngpus_per_node, args):
     # SET Optimizer & LR Scheduler
     ## construct SGD and cosine lr scheduler
     optimizer = get_optimizer(model.model, args.optim, args.lr, args.momentum, args.weight_decay)
-    scheduler = get_cosine_schedule_with_warmup(optimizer,
-                                                args.num_train_iter,
-                                                num_warmup_steps=args.num_train_iter * 0)
+    # scheduler = get_cosine_schedule_with_warmup(optimizer,
+    #                                             args.num_train_iter,
+    #                                             num_warmup_steps=args.num_train_iter * 0)
+    scheduler = get_poly_scheduler(optimizer,
+                                  args.num_train_iter,
+                                  args.momentum)
+
     ## set SGD and cosine lr on FixMatch 
     model.set_optimizer(optimizer, scheduler)
 
