@@ -6,7 +6,7 @@ from torch.cuda.amp import autocast, GradScaler
 import os
 import contextlib
 
-from train_utils import ce_loss, wd_loss, EMA, Bn_Controller
+from train_utils import ce_loss, multilabel_bce_loss, wd_loss, EMA, Bn_Controller, AP
 
 from sklearn.metrics import *
 from copy import deepcopy
@@ -89,11 +89,18 @@ class FullySupervised:
             eval_dict = self.evaluate(args=args)
             print(eval_dict)
 
+        if args.dataset == 'voc12':
+            loss_fn = multilabel_bce_loss
+            #loss_fn = multilabel_sm_loss
+        else:
+            loss_fn = ce_loss
+
         for _, x_lb, y_lb in self.loader_dict['train_lb']:
 
             # prevent the training iterations exceed args.num_train_iter
             if self.it > args.num_train_iter:
                 break
+
             end_batch.record()
             torch.cuda.synchronize()
             start_run.record()
@@ -105,11 +112,8 @@ class FullySupervised:
 
             # inference and calculate sup/unsup losses
             with amp_cm():
-
                 logits_x_lb = self.model(x_lb)
-
-                sup_loss = ce_loss(logits_x_lb, y_lb, reduction='mean')
-
+                sup_loss = loss_fn(logits_x_lb, y_lb, reduction='mean')
                 total_loss = sup_loss
 
             # parameter updates
@@ -185,6 +189,12 @@ class FullySupervised:
         self.ema.apply_shadow()
         if eval_loader is None:
             eval_loader = self.loader_dict['eval']
+
+        if args.dataset != 'voc12':
+            eval_loss_fn = F.cross_entropy
+        else:
+            eval_loss_fn = F.multilabel_soft_margin_loss
+
         total_loss = 0.0
         total_num = 0.0
         y_true = []
@@ -195,18 +205,38 @@ class FullySupervised:
             num_batch = x.shape[0]
             total_num += num_batch
             logits = self.model(x)
-            loss = F.cross_entropy(logits, y, reduction='mean')
+            loss = eval_loss_fn(logits, y, reduction='mean')
             y_true.extend(y.cpu().tolist())
-            y_pred.extend(torch.max(logits, dim=-1)[1].cpu().tolist())
-            y_logits.extend(torch.softmax(logits, dim=-1).cpu().tolist())
+            #y_pred.extend(torch.max(logits, dim=-1)[1].cpu().tolist())
+            y_logits.extend(logits.cpu().tolist())
             total_loss += loss.detach() * num_batch
-        top1 = accuracy_score(y_true, y_pred)
-        top5 = top_k_accuracy_score(y_true, y_logits, k=5)
-        cf_mat = confusion_matrix(y_true, y_pred, normalize='true')
-        self.print_fn('confusion matrix:\n' + np.array_str(cf_mat))
+        
+        if args.dataset != 'voc12':
+            y_true = torch.Tensor(y_true)
+            y_pred = torch.max(torch.Tensor(y_logits), dim=-1)[1]
+            y_logits = torch.softmax(torch.Tensor(y_logits), dim=-1)
+
+            top1 = accuracy_score(y_true, y_pred)
+            top5 = top_k_accuracy_score(y_true, y_logits, k=5)
+            cf_mat = confusion_matrix(y_true, y_pred, normalize='true')
+            self.print_fn('confusion matrix:\n' + np.array_str(cf_mat))
+            result = {'eval/loss': total_loss / total_num, 'eval/top-1-acc': top1, 'eval/top-5-acc': top5}
+        else:
+            y_true = torch.Tensor(y_true)
+            y_logits = torch.sigmoid(torch.Tensor(y_logits))
+            y_pred = y_logits >= 0.5
+
+            map = AP(y_true, y_logits).mean()
+            top1 = accuracy_score(y_true, y_pred)
+            precision = precision_score(y_true, y_pred, average='samples')
+            recall = recall_score(y_true, y_pred, average='samples')
+            F1 = f1_score(y_true, y_pred, average='samples')
+            result = {'eval/loss': total_loss / total_num, 'eval/top-1-acc': top1, 'eval/map': map,
+                'eval/precision': precision, 'eval/recall': recall, 'eval/F1': F1}
+
         self.ema.restore()
         self.model.train()
-        return {'eval/loss': total_loss / total_num, 'eval/top-1-acc': top1, 'eval/top-5-acc': top5}
+        return result
 
     def save_model(self, save_name, save_path):
         if self.it < 1000000:

@@ -4,6 +4,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import LambdaLR
 import torch.nn.functional as F
 
+import numpy as np
 import math
 import time
 import os
@@ -450,3 +451,38 @@ class Bn_Controller:
                 m.running_var.data = self.backup[name + '.running_var']
                 m.num_batches_tracked.data = self.backup[name + '.num_batches_tracked']
         self.backup = {}
+
+
+
+def average_precision(pred, label):
+    epsilon = 1e-8
+    pred, label = pred.numpy(), label.numpy()
+    # sort examples
+    indices = pred.argsort()[::-1]
+    # Computes prec@i
+    total_count_ = np.cumsum(np.ones((len(pred), 1)))
+
+    label_ = label[indices]
+    ind = label_ == 1
+    pos_count_ = np.cumsum(ind)
+    total = pos_count_[-1]
+    pos_count_[np.logical_not(ind)] = 0
+    pp = pos_count_ / total_count_
+    precision_at_i_ = np.sum(pp)
+    precision_at_i = precision_at_i_ / (total + epsilon)
+
+    return precision_at_i
+
+
+def AP(label, logit):
+    if np.size(logit) == 0:
+        return 0
+    ap = np.zeros((logit.shape[1]))
+    # compute average precision for each class
+    for k in range(logit.shape[1]):
+        # sort scores
+        logits = logit[:, k]
+        preds = label[:, k]
+        
+        ap[k] = average_precision(logits, preds)
+    return ap

@@ -13,9 +13,9 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 
 from utils import net_builder, get_logger, count_parameters, over_write_args_from_file
-from train_utils import TBLog, get_optimizer, get_cosine_schedule_with_warmup
+from train_utils import TBLog, get_optimizer, get_cosine_schedule_with_warmup, get_poly_scheduler
 from models.fullysupervised.fullysupervised import FullySupervised
-from datasets.ssl_dataset import SSL_Dataset
+from datasets.ssl_dataset import SSL_Dataset, ImageNetLoader, VOCLoader
 from datasets.data_utils import get_data_loader
 
 
@@ -106,6 +106,8 @@ def main_worker(gpu, ngpus_per_node, args):
     args.bn_momentum = 1.0 - 0.999
     if 'imagenet' in args.dataset.lower():
         _net_builder = net_builder('ResNet50', False, None, is_remix=False)
+    elif 'voc12' in args.dataset.lower():
+        _net_builder = net_builder('ResNet50', False, None, is_remix=False, pretrained=args.pretrained)
     else:
         _net_builder = net_builder(args.net,
                                    args.net_from_name,
@@ -177,14 +179,30 @@ def main_worker(gpu, ngpus_per_node, args):
 
     if args.rank != 0 and args.distributed:
         torch.distributed.barrier()
-    # Construct Dataset & DataLoader
-    train_dset = SSL_Dataset(args, alg='fullysupervised', name=args.dataset, train=True,
-                             num_classes=args.num_classes, data_dir=args.data_dir)
-    lb_dset, ulb_dset = train_dset.get_ssl_dset(args.num_labels)
 
-    _eval_dset = SSL_Dataset(args, alg='fullysupervised', name=args.dataset, train=False,
-                             num_classes=args.num_classes, data_dir=args.data_dir)
-    eval_dset = _eval_dset.get_dset()
+    # Construct Dataset & DataLoader
+    if args.dataset == 'imagenet':
+        image_loader = ImageNetLoader(root_path=args.data_dir, num_labels=args.num_labels,
+                                      num_class=args.num_classes)
+        lb_dset = image_loader.get_lb_train_data()
+        ulb_dset = image_loader.get_ulb_train_data()
+        eval_dset = image_loader.get_lb_test_data()
+    
+    elif args.dataset == 'voc12':
+        image_loader = VOCLoader(root_path=args.data_dir, lb_list=args.lb_list, ulb_list=args.ulb_list)
+        lb_dset = image_loader.get_lb_train_data()
+        ulb_dset = image_loader.get_ulb_train_data()
+        eval_dset = image_loader.get_lb_test_data()
+
+    else:
+        train_dset = SSL_Dataset(args, alg='fullysupervised', name=args.dataset, train=True,
+                                num_classes=args.num_classes, data_dir=args.data_dir)
+        lb_dset, ulb_dset = train_dset.get_ssl_dset(args.num_labels)
+
+        _eval_dset = SSL_Dataset(args, alg='fullysupervised', name=args.dataset, train=False,
+                                num_classes=args.num_classes, data_dir=args.data_dir)
+        eval_dset = _eval_dset.get_dset()
+
     if args.rank == 0 and args.distributed:
         torch.distributed.barrier()
     

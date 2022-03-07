@@ -12,8 +12,8 @@ import os
 import contextlib
 from train_utils import AverageMeter
 
-from .fixmatch_utils import consistency_loss, Get_Scalar, AP
-from train_utils import ce_loss, multilabel_bce_loss, wd_loss, EMA, Bn_Controller
+from .fixmatch_utils import consistency_loss, Get_Scalar
+from train_utils import ce_loss, multilabel_bce_loss, wd_loss, EMA, Bn_Controller, AP
 
 from sklearn.metrics import *
 from copy import deepcopy

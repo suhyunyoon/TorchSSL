@@ -138,12 +138,12 @@ def main_worker(gpu, ngpus_per_node, args):
     # SET Optimizer & LR Scheduler
     ## construct SGD and cosine lr scheduler
     optimizer = get_optimizer(model.model, args.optim, args.lr, args.momentum, args.weight_decay)
-    # scheduler = get_cosine_schedule_with_warmup(optimizer,
-    #                                             args.num_train_iter,
-    #                                             num_warmup_steps=args.num_train_iter * 0)
-    scheduler = get_poly_scheduler(optimizer,
-                                  args.num_train_iter,
-                                  args.momentum)
+    scheduler = get_cosine_schedule_with_warmup(optimizer,
+                                             args.num_train_iter,
+                                                num_warmup_steps=args.num_train_iter * 0)
+    #scheduler = get_poly_scheduler(optimizer,
+    #                              args.num_train_iter,
+    #                              args.momentum)
 
     ## set SGD and cosine lr on FixMatch 
     model.set_optimizer(optimizer, scheduler)
